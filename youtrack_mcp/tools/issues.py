@@ -196,6 +196,173 @@ class IssueTools:
             logger.exception(f"Error adding comment to issue {issue_id}")
             return json.dumps({"error": str(e)})
     
+    @sync_wrapper
+    def get_comments(self, issue_id: str, limit: int = 50) -> str:
+        """
+        Get comments for an issue.
+        
+        FORMAT: get_comments(issue_id="DEMO-123", limit=50)
+        
+        Args:
+            issue_id: The issue ID or readable ID (e.g., PROJECT-123)
+            limit: Maximum number of comments to return (default: 50)
+            
+        Returns:
+            JSON string with the list of comments
+        """
+        try:
+            comments = self.issues_api.get_comments(issue_id, limit)
+            
+            # Convert to list of dictionaries
+            result = []
+            for comment in comments:
+                if hasattr(comment, 'model_dump'):
+                    comment_dict = comment.model_dump()
+                else:
+                    comment_dict = comment
+                
+                # Format the comment for better readability
+                formatted_comment = {
+                    "id": comment_dict.get("id"),
+                    "text": comment_dict.get("text"),
+                    "author": comment_dict.get("author", {}).get("name") or comment_dict.get("author", {}).get("login"),
+                    "author_details": comment_dict.get("author"),
+                    "created": comment_dict.get("created"),
+                    "updated": comment_dict.get("updated"),
+                    "deleted": comment_dict.get("deleted", False),
+                    "attachments": comment_dict.get("attachments", [])
+                }
+                result.append(formatted_comment)
+            
+            return json.dumps({
+                "issue_id": issue_id,
+                "total_comments": len(result),
+                "comments": result
+            }, indent=2)
+            
+        except Exception as e:
+            logger.exception(f"Error getting comments for issue {issue_id}")
+            return json.dumps({"error": str(e)})
+    
+    @sync_wrapper
+    def get_work_items(self, issue_id: str, limit: int = 100) -> str:
+        """
+        Get work items (time tracking entries) for an issue.
+        
+        FORMAT: get_work_items(issue_id="DEMO-123", limit=100)
+        
+        Args:
+            issue_id: The issue ID or readable ID (e.g., PROJECT-123)
+            limit: Maximum number of work items to return (default: 100)
+            
+        Returns:
+            JSON string with the list of work items (time tracking entries)
+        """
+        try:
+            work_items = self.issues_api.get_work_items(issue_id, limit)
+            
+            # Convert to list of dictionaries
+            result = []
+            total_minutes = 0
+            
+            for item in work_items:
+                if hasattr(item, 'model_dump'):
+                    item_dict = item.model_dump()
+                else:
+                    item_dict = item
+                
+                # Format the work item for better readability
+                duration_minutes = item_dict.get("duration", 0) or 0
+                total_minutes += duration_minutes
+                
+                formatted_item = {
+                    "id": item_dict.get("id"),
+                    "duration_minutes": duration_minutes,
+                    "duration_hours": round(duration_minutes / 60, 2) if duration_minutes else 0,
+                    "date": item_dict.get("date"),
+                    "description": item_dict.get("description"),
+                    "author": item_dict.get("author", {}).get("name") or item_dict.get("author", {}).get("login"),
+                    "author_details": item_dict.get("author"),
+                    "type": item_dict.get("type", {}).get("name") if item_dict.get("type") else None,
+                    "created": item_dict.get("created"),
+                    "updated": item_dict.get("updated")
+                }
+                result.append(formatted_item)
+            
+            return json.dumps({
+                "issue_id": issue_id,
+                "total_work_items": len(result),
+                "total_duration_minutes": total_minutes,
+                "total_duration_hours": round(total_minutes / 60, 2),
+                "work_items": result
+            }, indent=2)
+            
+        except Exception as e:
+            logger.exception(f"Error getting work items for issue {issue_id}")
+            return json.dumps({"error": str(e)})
+    
+    @sync_wrapper
+    def get_time_tracking(self, issue_id: str) -> str:
+        """
+        Get time tracking summary for an issue, including estimation and spent time.
+        
+        FORMAT: get_time_tracking(issue_id="DEMO-123")
+        
+        Args:
+            issue_id: The issue ID or readable ID (e.g., PROJECT-123)
+            
+        Returns:
+            JSON string with time tracking summary including estimation, spent time, and work items
+        """
+        try:
+            summary = self.issues_api.get_time_tracking_summary(issue_id)
+            
+            # Get work items for detailed breakdown
+            work_items = self.issues_api.get_work_items(issue_id, limit=100)
+            
+            # Group work items by author
+            by_author = {}
+            for item in work_items:
+                if hasattr(item, 'model_dump'):
+                    item_dict = item.model_dump()
+                else:
+                    item_dict = item
+                
+                author_name = item_dict.get("author", {}).get("name") or item_dict.get("author", {}).get("login") or "Unknown"
+                if author_name not in by_author:
+                    by_author[author_name] = {
+                        "total_minutes": 0,
+                        "total_hours": 0,
+                        "count": 0
+                    }
+                
+                duration = item_dict.get("duration", 0) or 0
+                by_author[author_name]["total_minutes"] += duration
+                by_author[author_name]["count"] += 1
+            
+            # Calculate hours for each author
+            for author_data in by_author.values():
+                author_data["total_hours"] = round(author_data["total_minutes"] / 60, 2)
+            
+            # Enhance the summary with additional information
+            enhanced_summary = {
+                "issue_id": issue_id,
+                "estimation": summary.get("estimation"),
+                "spent_time": summary.get("spent_time"),
+                "total_work_items": summary.get("work_items_count", 0),
+                "total_duration": {
+                    "minutes": summary.get("total_duration_minutes", 0),
+                    "hours": summary.get("total_duration_hours", 0)
+                },
+                "breakdown_by_author": by_author
+            }
+            
+            return json.dumps(enhanced_summary, indent=2)
+            
+        except Exception as e:
+            logger.exception(f"Error getting time tracking for issue {issue_id}")
+            return json.dumps({"error": str(e)})
+    
     def close(self) -> None:
         """Close the API client."""
         self.client.close()
@@ -236,6 +403,26 @@ class IssueTools:
                     "text": "The comment text to add to the issue"
                 }
             },
+            "get_comments": {
+                "description": "Get all comments for a specific issue, including author information and timestamps.",
+                "parameter_descriptions": {
+                    "issue_id": "The issue ID or readable ID (e.g., PROJECT-123)",
+                    "limit": "Maximum number of comments to return (optional, default: 50)"
+                }
+            },
+            "get_work_items": {
+                "description": "Get work items (time tracking entries) for a specific issue, showing who logged time and when.",
+                "parameter_descriptions": {
+                    "issue_id": "The issue ID or readable ID (e.g., PROJECT-123)",
+                    "limit": "Maximum number of work items to return (optional, default: 100)"
+                }
+            },
+            "get_time_tracking": {
+                "description": "Get comprehensive time tracking summary for an issue, including estimation, spent time, and breakdown by author.",
+                "parameter_descriptions": {
+                    "issue_id": "The issue ID or readable ID (e.g., PROJECT-123)"
+                }
+            },
             "get_issue_raw": {
                 "description": "Get raw information about a specific issue, bypassing the Pydantic model.",
                 "parameter_descriptions": {
@@ -262,4 +449,4 @@ class IssueTools:
             return json.dumps(raw_issue, indent=2)
         except Exception as e:
             logger.exception(f"Error getting raw issue {issue_id}")
-            return json.dumps({"error": str(e)}) 
+            return json.dumps({"error": str(e)})
