@@ -1,4 +1,4 @@
-# YouTrack MCP Server v0.3.7
+# YouTrack MCP Server v0.3.8
 
 A Model Context Protocol (MCP) server implementation for JetBrains YouTrack, allowing AI assistants to interact with YouTrack issue tracking system.
 
@@ -15,6 +15,8 @@ Model Context Protocol (MCP) is an open standard that enables AI models to inter
   - Search for issues using YouTrack query language
   - Create new issues
   - Add comments to issues
+  - **Get comments from issues** *(NEW)*
+  - **View time tracking and work items** *(NEW)*
 
 - **Project Management**
   - Get project list and details
@@ -31,6 +33,12 @@ Model Context Protocol (MCP) is an open standard that enables AI models to inter
   - Advanced search with custom fields
   - Structured filtering
   - Sorting options
+
+- **Time Tracking** *(NEW)*
+  - Get work items (time entries) for issues
+  - View time tracking summary with estimation vs spent time
+  - See breakdown by author
+  - Calculate total hours logged
 
 ## Quick Start with Docker
 
@@ -126,7 +134,7 @@ To build and push multi-architecture images (for both ARM64 and AMD64 platforms)
 2. Build and push for multiple platforms:
    ```bash
    docker buildx build --platform linux/amd64,linux/arm64 \
-     -t tonyzorin/youtrack-mcp:0.3.7 \
+     -t tonyzorin/youtrack-mcp:0.3.8 \
      -t tonyzorin/youtrack-mcp:latest \
      --push .
    ```
@@ -233,6 +241,9 @@ The YouTrack MCP server provides the following tools:
 - `search_issues` - Search for issues using YouTrack query language
 - `create_issue` - Create a new issue in a specific project
 - `add_comment` - Add a comment to an existing issue
+- **`get_comments`** - Get all comments from an issue *(NEW)*
+- **`get_work_items`** - Get time tracking entries for an issue *(NEW)*
+- **`get_time_tracking`** - Get comprehensive time tracking summary *(NEW)*
 
 ### Projects
 
@@ -269,6 +280,43 @@ get_issue(issue_id="DEMO-123")
 ```
 
 The issue ID can be either the readable ID (e.g., "DEMO-123") or the internal ID (e.g., "3-14").
+
+### Get Comments (NEW)
+
+To get all comments from an issue:
+
+```python
+# Get comments for an issue
+get_comments(issue_id="DEMO-123", limit=50)
+```
+
+This returns a list of all comments including author information, timestamps, and the comment text.
+
+### Get Work Items (NEW)
+
+To get time tracking entries for an issue:
+
+```python
+# Get work items (time entries)
+get_work_items(issue_id="DEMO-123", limit=100)
+```
+
+This returns all time tracking entries showing who logged time, when, and for how long.
+
+### Get Time Tracking Summary (NEW)
+
+To get a comprehensive time tracking summary:
+
+```python
+# Get time tracking summary
+get_time_tracking(issue_id="DEMO-123")
+```
+
+This returns:
+- Original estimation
+- Total time spent
+- Breakdown by author
+- Number of work items
 
 ### Add Comment
 
@@ -313,6 +361,18 @@ Here are some examples of using the YouTrack MCP server with AI assistants:
 Can you get the details for issue DEMO-1?
 ```
 
+### Get Issue Comments
+
+```
+Show me all comments on issue PROJECT-123
+```
+
+### View Time Tracking
+
+```
+How much time has been logged on issue DEMO-456? Show me the breakdown by person.
+```
+
 ### Search for Issues
 
 ```
@@ -329,6 +389,12 @@ Create a new bug report in the PROJECT with the summary "Login page is not worki
 
 ```
 Add a comment to issue PROJECT-456 saying "I've fixed this issue in the latest commit. Please review."
+```
+
+### Check Time Spent
+
+```
+Show me the time tracking summary for issue DEMO-789. I want to see the estimation vs actual time spent.
 ```
 
 ## Configuration
@@ -369,3 +435,12 @@ docker run -i --rm \
   -e MCP_DEBUG=true \
   tonyzorin/youtrack-mcp:latest
 ```
+
+## Changelog
+
+### v0.3.8
+- Added support for getting issue comments
+- Added support for viewing time tracking information
+- Added work items (time entries) retrieval
+- Added comprehensive time tracking summary with author breakdown
+- Improved error handling for time tracking features
